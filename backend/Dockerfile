@@ -11,4 +11,6 @@ WORKDIR /home/app
 
 RUN npm i -g nodemon
 
+EXPOSE 3001
+
 CMD ["nodemon", "index.js"]
