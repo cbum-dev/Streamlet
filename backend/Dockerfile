@@ -1,16 +1,14 @@
-FROM ubuntu:focal
+FROM node:18-slim
 
-RUN /usr/bin/apt-get update && \
-    /usr/bin/apt-get install -y curl && \
-    curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
-    /usr/bin/apt-get update && \
-    /usr/bin/apt-get upgrade -y && \
-    /usr/bin/apt-get install -y nodejs ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg
 
 WORKDIR /home/app
 
-RUN npm i -g nodemon
+COPY package*.json ./
+RUN npm install --production
+
+COPY . .
 
 EXPOSE 3001
 
-CMD ["nodemon", "index.js"]
+CMD ["node", "index.js"]
