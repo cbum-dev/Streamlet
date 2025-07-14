@@ -1,3 +1,6 @@
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
@@ -12,16 +15,15 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
-import { 
-  Video, 
-  VideoOff, 
-  Mic, 
-  MicOff, 
-  Monitor, 
-  MonitorOff, 
-  Settings, 
-  Play, 
-  Square, 
+import {
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Monitor,
+  MonitorOff,
+  Play,
+  Square,
   Copy,
   Eye,
   EyeOff,
@@ -45,35 +47,31 @@ export default function ProfessionalStreamer() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const socketRef = useRef<any>(null)
   const mediaRecorderRef = useRef<any>(null)
-  const screenRecorderRef = useRef<any>(null)
 
   const [isStreaming, setIsStreaming] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
-  
-  // Stream configuration
+
   const [streamConfig, setStreamConfig] = useState<StreamConfig | null>(null)
   const [platform, setPlatform] = useState('youtube')
   const [quality, setQuality] = useState('medium')
   const [customEndpoint, setCustomEndpoint] = useState('')
   const [userStreamKey, setUserStreamKey] = useState('')
-  
-  // Media controls
+
   const [isCameraOn, setIsCameraOn] = useState(true)
   const [isMicOn, setIsMicOn] = useState(true)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  
-  // UI states
+
   const [showStreamKey, setShowStreamKey] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('stream')
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:3001', {
+    socketRef.current = io('https://streamlet-1.onrender.com/', {
       transports: ['websocket', 'polling']
     })
 
@@ -81,13 +79,13 @@ export default function ProfessionalStreamer() {
       setIsConnected(true)
       setError(null)
     })
-    
+
     socketRef.current.on('disconnect', () => {
       setIsConnected(false)
       setError('Disconnected from server')
     })
 
-    socketRef.current.on('streamStarted', (data) => {
+    socketRef.current.on('streamStarted', () => {
       setSuccess('Stream started successfully!')
       setTimeout(() => setSuccess(null), 3000)
     })
@@ -97,7 +95,7 @@ export default function ProfessionalStreamer() {
       setTimeout(() => setSuccess(null), 3000)
     })
 
-    socketRef.current.on('streamError', (data) => {
+    socketRef.current.on('streamError', (data: any) => {
       setError(`Stream error: ${data.error}`)
       setIsStreaming(false)
     })
@@ -113,9 +111,9 @@ export default function ProfessionalStreamer() {
 
   const initializeMedia = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: true, 
-        video: { width: 1280, height: 720 } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { width: 1280, height: 720 }
       })
       setMediaStream(stream)
       if (videoRef.current) videoRef.current.srcObject = stream
@@ -132,17 +130,17 @@ export default function ProfessionalStreamer() {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/stream/create', {
+      const response = await fetch('https://streamlet-1.onrender.com/api/stream/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          platform, 
-          quality, 
-          customEndpoint, 
-          userStreamKey 
+        body: JSON.stringify({
+          platform,
+          quality,
+          customEndpoint,
+          userStreamKey
         })
       })
-      
+
       const data = await response.json()
       if (data.success) {
         setStreamConfig(data.config)
@@ -153,6 +151,7 @@ export default function ProfessionalStreamer() {
       }
     } catch (err) {
       setError('Failed to create stream configuration')
+      console.log(err)
     }
   }
 
@@ -178,31 +177,27 @@ export default function ProfessionalStreamer() {
 
   const toggleScreenShare = async () => {
     if (isScreenSharing) {
-      // Stop screen sharing
       screenStream?.getTracks().forEach(track => track.stop())
       setScreenStream(null)
       setIsScreenSharing(false)
-      
-      // Switch back to camera
+
       if (videoRef.current && mediaStream) {
         videoRef.current.srcObject = mediaStream
       }
     } else {
-      // Start screen sharing
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true
         })
-        
+
         setScreenStream(stream)
         setIsScreenSharing(true)
-        
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream
         }
-        
-        // Handle screen share ending
+
         stream.getVideoTracks()[0].onended = () => {
           setIsScreenSharing(false)
           setScreenStream(null)
@@ -240,9 +235,9 @@ export default function ProfessionalStreamer() {
 
     const recorder = new MediaRecorder(currentStream, {
       audioBitsPerSecond: 128000,
-      videoBitsPerSecond: quality === 'ultra' ? 6000000 : 
-                          quality === 'high' ? 4000000 : 
-                          quality === 'medium' ? 2500000 : 1000000
+      videoBitsPerSecond: quality === 'ultra' ? 6000000 :
+        quality === 'high' ? 4000000 :
+          quality === 'medium' ? 2500000 : 1000000
     })
 
     recorder.ondataavailable = (event) => {
@@ -256,7 +251,6 @@ export default function ProfessionalStreamer() {
       console.error('Recorder error:', err)
     }
 
-    // Start stream on backend
     socketRef.current.emit('startStream', {
       streamId: streamConfig.streamId,
       streamKey: streamConfig.streamKey,
@@ -275,11 +269,11 @@ export default function ProfessionalStreamer() {
       mediaRecorderRef.current.stop()
       mediaRecorderRef.current = null
     }
-    
+
     if (socketRef.current) {
       socketRef.current.emit('stopStream')
     }
-    
+
     setIsStreaming(false)
   }
 
@@ -331,7 +325,6 @@ export default function ProfessionalStreamer() {
           </p>
         </div>
 
-        {/* Status Banner */}
         <div className="mb-6">
           <Card>
             <CardContent className="pt-6">
@@ -353,13 +346,12 @@ export default function ProfessionalStreamer() {
           </Card>
         </div>
 
-        {/* Alerts */}
         {error && (
           <Alert className="mb-6" variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        
+
         {success && (
           <Alert className="mb-6">
             <AlertDescription>{success}</AlertDescription>
@@ -367,7 +359,6 @@ export default function ProfessionalStreamer() {
         )}
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Video Preview */}
           <div className="lg:col-span-2">
             <Card>
               <CardHeader>
@@ -392,7 +383,7 @@ export default function ProfessionalStreamer() {
                     muted
                     className="w-full aspect-video bg-black rounded-lg"
                   />
-                  
+
                   {/* Video Controls Overlay */}
                   <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center">
                     <div className="flex space-x-2">
@@ -418,7 +409,7 @@ export default function ProfessionalStreamer() {
                         {isScreenSharing ? <MonitorOff className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
                       </Button>
                     </div>
-                    
+
                     <div className="flex space-x-2">
                       <Button
                         variant={isAudioEnabled ? "default" : "destructive"}
@@ -434,14 +425,13 @@ export default function ProfessionalStreamer() {
             </Card>
           </div>
 
-          {/* Control Panel */}
           <div className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="stream">Stream</TabsTrigger>
                 <TabsTrigger value="settings">Settings</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="stream" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -567,7 +557,7 @@ export default function ProfessionalStreamer() {
                   </Card>
                 )}
               </TabsContent>
-              
+
               <TabsContent value="settings" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -582,7 +572,7 @@ export default function ProfessionalStreamer() {
                         onCheckedChange={toggleCamera}
                       />
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <Label htmlFor="mic-toggle">Microphone</Label>
                       <Switch
@@ -591,7 +581,7 @@ export default function ProfessionalStreamer() {
                         onCheckedChange={toggleMicrophone}
                       />
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <Label htmlFor="screen-toggle">Screen Share</Label>
                       <Switch
@@ -600,7 +590,7 @@ export default function ProfessionalStreamer() {
                         onCheckedChange={toggleScreenShare}
                       />
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <Label htmlFor="audio-toggle">Audio Output</Label>
                       <Switch
