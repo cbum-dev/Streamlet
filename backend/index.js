@@ -13,28 +13,25 @@ const server = http.createServer(app)
 
 const io = new SocketIO(server, {
     cors: {
-        origin: ["http://localhost:3000", "https://localhost:3000"],
+        origin: "*",
         methods: ["GET", "POST"],
         credentials: true
     }
 })
 
 app.use(cors({
-    origin: ["http://localhost:3000", "https://localhost:3000"],
+    origin: "*",
     credentials: true
 }))
 
 app.use(express.json())
 
-// Store active streams
 const activeStreams = new Map()
 
-// Generate stream ID (not the actual stream key)
 function generateStreamId() {
     return crypto.randomBytes(16).toString('hex')
 }
 
-// Create FFmpeg process with proper stream key handling
 function createFFmpegProcess(streamKey, platform = 'youtube', quality = 'medium') {
     const qualitySettings = {
         low: { bitrate: '1000k', fps: 15, crf: '28' },
@@ -123,7 +120,6 @@ app.post('/api/stream/create', (req, res) => {
     const { platform, quality, customEndpoint, userStreamKey } = req.body
     const streamId = crypto.randomUUID()
     
-    // Don't generate a stream key - user must provide it
     if (!userStreamKey && platform !== 'custom') {
         return res.status(400).json({
             success: false,
@@ -153,7 +149,7 @@ app.post('/api/stream/create', (req, res) => {
 app.get('/api/streams', (req, res) => {
     const streams = Array.from(activeStreams.values()).map(stream => ({
         ...stream,
-        streamKey: '[HIDDEN]' // Don't expose stream keys in API
+        streamKey: '[HIDDEN]' 
     }))
     res.json({ streams })
 })
@@ -186,7 +182,6 @@ io.on('connection', socket => {
         socket.ffmpegProcess = ffmpegProcess
         socket.streamId = streamId
         
-        // Update stream status
         if (activeStreams.has(streamId)) {
             const stream = activeStreams.get(streamId)
             stream.status = 'live'
@@ -194,7 +189,6 @@ io.on('connection', socket => {
             activeStreams.set(streamId, stream)
         }
         
-        // Monitor FFmpeg process for errors
         ffmpegProcess.on('close', (code) => {
             if (code !== 0) {
                 socket.emit('streamError', { error: `Stream failed with code ${code}` })
