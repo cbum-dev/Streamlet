@@ -17,9 +17,8 @@ services:
       context: ./frontend
       dockerfile: ./Dockerfile
     volumes:
-      - ./frontend:/home/app
+      - ./frontend:/home/app:cached
       - /home/app/node_modules
-      - /home/app/.next
     ports:
       - "3000:3000"
     environment:
