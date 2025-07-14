@@ -28,7 +28,8 @@ import {
   Volume2,
   VolumeX,
   Maximize,
-  Minimize
+  Minimize,
+  Info
 } from 'lucide-react'
 
 interface StreamConfig {
@@ -56,6 +57,7 @@ export default function ProfessionalStreamer() {
   const [platform, setPlatform] = useState('youtube')
   const [quality, setQuality] = useState('medium')
   const [customEndpoint, setCustomEndpoint] = useState('')
+  const [userStreamKey, setUserStreamKey] = useState('')
   
   // Media controls
   const [isCameraOn, setIsCameraOn] = useState(true)
@@ -97,6 +99,7 @@ export default function ProfessionalStreamer() {
 
     socketRef.current.on('streamError', (data) => {
       setError(`Stream error: ${data.error}`)
+      setIsStreaming(false)
     })
 
     initializeMedia()
@@ -123,11 +126,21 @@ export default function ProfessionalStreamer() {
   }
 
   const createStreamConfig = async () => {
+    if (!userStreamKey && platform !== 'custom') {
+      setError('Please enter your stream key')
+      return
+    }
+
     try {
       const response = await fetch('http://localhost:3001/api/stream/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform, quality, customEndpoint })
+        body: JSON.stringify({ 
+          platform, 
+          quality, 
+          customEndpoint, 
+          userStreamKey 
+        })
       })
       
       const data = await response.json()
@@ -136,7 +149,7 @@ export default function ProfessionalStreamer() {
         setSuccess('Stream configuration created!')
         setTimeout(() => setSuccess(null), 3000)
       } else {
-        setError('Failed to create stream configuration')
+        setError(data.error || 'Failed to create stream configuration')
       }
     } catch (err) {
       setError('Failed to create stream configuration')
@@ -275,6 +288,36 @@ export default function ProfessionalStreamer() {
       navigator.clipboard.writeText(streamConfig.streamKey)
       setSuccess('Stream key copied to clipboard!')
       setTimeout(() => setSuccess(null), 2000)
+    }
+  }
+
+  const getStreamKeyPlaceholder = () => {
+    switch (platform) {
+      case 'youtube':
+        return 'Enter your YouTube stream key'
+      case 'twitch':
+        return 'Enter your Twitch stream key'
+      case 'facebook':
+        return 'Enter your Facebook stream key'
+      case 'custom':
+        return 'Enter custom RTMP URL'
+      default:
+        return 'Enter stream key'
+    }
+  }
+
+  const getStreamKeyHelp = () => {
+    switch (platform) {
+      case 'youtube':
+        return 'Get your stream key from YouTube Studio > Create > Go Live'
+      case 'twitch':
+        return 'Get your stream key from Twitch Creator Dashboard > Settings > Stream'
+      case 'facebook':
+        return 'Get your stream key from Facebook Creator Studio > Live'
+      case 'custom':
+        return 'Enter the complete RTMP URL including stream key'
+      default:
+        return ''
     }
   }
 
@@ -438,17 +481,28 @@ export default function ProfessionalStreamer() {
                       </Select>
                     </div>
 
-                    {platform === 'custom' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="customEndpoint">Custom RTMP Endpoint</Label>
-                        <Input
-                          id="customEndpoint"
-                          placeholder="rtmp://your-server.com/live/stream-key"
-                          value={customEndpoint}
-                          onChange={(e) => setCustomEndpoint(e.target.value)}
-                        />
+                    <div className="space-y-2">
+                      <Label htmlFor="streamKey">
+                        {platform === 'custom' ? 'RTMP URL' : 'Stream Key'}
+                      </Label>
+                      <Input
+                        id="streamKey"
+                        type="password"
+                        placeholder={getStreamKeyPlaceholder()}
+                        value={platform === 'custom' ? customEndpoint : userStreamKey}
+                        onChange={(e) => {
+                          if (platform === 'custom') {
+                            setCustomEndpoint(e.target.value)
+                          } else {
+                            setUserStreamKey(e.target.value)
+                          }
+                        }}
+                      />
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Info className="h-4 w-4" />
+                        <span>{getStreamKeyHelp()}</span>
                       </div>
-                    )}
+                    </div>
 
                     <Button onClick={createStreamConfig} className="w-full">
                       Create Stream Configuration

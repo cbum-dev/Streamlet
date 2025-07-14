@@ -29,12 +29,12 @@ app.use(express.json())
 // Store active streams
 const activeStreams = new Map()
 
-// Generate stream key
-function generateStreamKey() {
+// Generate stream ID (not the actual stream key)
+function generateStreamId() {
     return crypto.randomBytes(16).toString('hex')
 }
 
-// Create FFmpeg process with dynamic stream key
+// Create FFmpeg process with proper stream key handling
 function createFFmpegProcess(streamKey, platform = 'youtube', quality = 'medium') {
     const qualitySettings = {
         low: { bitrate: '1000k', fps: 15, crf: '28' },
@@ -54,10 +54,13 @@ function createFFmpegProcess(streamKey, platform = 'youtube', quality = 'medium'
 
     const rtmpUrl = platformEndpoints[platform] || platformEndpoints.youtube
 
+    console.log(`Starting FFmpeg with RTMP URL: ${rtmpUrl.replace(streamKey, '[HIDDEN]')}`)
+
     const options = [
-        '-i', '-',
+        '-f', 'webm',
+        '-i', 'pipe:0',
         '-c:v', 'libx264',
-        '-preset', 'ultrafast',
+        '-preset', 'veryfast',
         '-tune', 'zerolatency',
         '-r', settings.fps,
         '-g', settings.fps * 2,
@@ -65,11 +68,12 @@ function createFFmpegProcess(streamKey, platform = 'youtube', quality = 'medium'
         '-crf', settings.crf,
         '-pix_fmt', 'yuv420p',
         '-sc_threshold', '0',
-        '-profile:v', 'main',
-        '-level', '3.1',
+        '-profile:v', 'baseline',
+        '-level', '3.0',
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',
+        '-ac', '2',
         '-b:v', settings.bitrate,
         '-maxrate', settings.bitrate,
         '-bufsize', `${parseInt(settings.bitrate) * 2}k`,
@@ -84,11 +88,23 @@ function createFFmpegProcess(streamKey, platform = 'youtube', quality = 'medium'
     })
 
     ffmpegProcess.stderr.on('data', (data) => {
-        console.error(`ffmpeg stderr: ${data}`)
+        const output = data.toString()
+        console.log(`ffmpeg stderr: ${output}`)
+        
+        // Check for authentication/connection errors
+        if (output.includes('403') || output.includes('401')) {
+            console.error('Authentication error: Invalid stream key')
+        }
+        if (output.includes('Connection refused') || output.includes('Network is unreachable')) {
+            console.error('Network error: Cannot connect to streaming server')
+        }
     })
 
     ffmpegProcess.on('close', (code) => {
         console.log(`ffmpeg process exited with code ${code}`)
+        if (code !== 0) {
+            console.error(`FFmpeg exited with error code ${code}`)
+        }
     })
 
     ffmpegProcess.on('error', (err) => {
@@ -104,13 +120,20 @@ app.get('/health', (req, res) => {
 })
 
 app.post('/api/stream/create', (req, res) => {
-    const { platform, quality, customEndpoint } = req.body
+    const { platform, quality, customEndpoint, userStreamKey } = req.body
     const streamId = crypto.randomUUID()
-    const streamKey = generateStreamKey()
+    
+    // Don't generate a stream key - user must provide it
+    if (!userStreamKey && platform !== 'custom') {
+        return res.status(400).json({
+            success: false,
+            error: 'Stream key is required for selected platform'
+        })
+    }
     
     const streamConfig = {
         streamId,
-        streamKey,
+        streamKey: userStreamKey || customEndpoint,
         platform: platform || 'youtube',
         quality: quality || 'medium',
         customEndpoint,
@@ -123,13 +146,15 @@ app.post('/api/stream/create', (req, res) => {
     res.json({
         success: true,
         streamId,
-        streamKey,
         config: streamConfig
     })
 })
 
 app.get('/api/streams', (req, res) => {
-    const streams = Array.from(activeStreams.values())
+    const streams = Array.from(activeStreams.values()).map(stream => ({
+        ...stream,
+        streamKey: '[HIDDEN]' // Don't expose stream keys in API
+    }))
     res.json({ streams })
 })
 
@@ -147,9 +172,15 @@ io.on('connection', socket => {
     console.log('Socket Connected', socket.id)
     
     socket.on('startStream', ({ streamId, streamKey, platform, quality, customEndpoint }) => {
-        console.log(`Starting stream ${streamId}`)
+        console.log(`Starting stream ${streamId} on ${platform}`)
         
         const effectiveStreamKey = platform === 'custom' ? customEndpoint : streamKey
+        
+        if (!effectiveStreamKey) {
+            socket.emit('streamError', { error: 'Stream key is required' })
+            return
+        }
+        
         const ffmpegProcess = createFFmpegProcess(effectiveStreamKey, platform, quality)
         
         socket.ffmpegProcess = ffmpegProcess
@@ -163,11 +194,18 @@ io.on('connection', socket => {
             activeStreams.set(streamId, stream)
         }
         
+        // Monitor FFmpeg process for errors
+        ffmpegProcess.on('close', (code) => {
+            if (code !== 0) {
+                socket.emit('streamError', { error: `Stream failed with code ${code}` })
+            }
+        })
+        
         socket.emit('streamStarted', { streamId, status: 'live' })
     })
     
     socket.on('binarystream', stream => {
-        if (socket.ffmpegProcess && socket.ffmpegProcess.stdin.writable) {
+        if (socket.ffmpegProcess && socket.ffmpegProcess.stdin && socket.ffmpegProcess.stdin.writable) {
             socket.ffmpegProcess.stdin.write(stream, (err) => {
                 if (err) {
                     console.log('FFmpeg write error:', err)
@@ -180,7 +218,7 @@ io.on('connection', socket => {
     socket.on('stopStream', () => {
         console.log('Stopping stream')
         if (socket.ffmpegProcess) {
-            socket.ffmpegProcess.kill('SIGTERM')
+            socket.ffmpegProcess.kill('SIGINT')
             socket.ffmpegProcess = null
         }
         
@@ -197,7 +235,7 @@ io.on('connection', socket => {
     socket.on('disconnect', () => {
         console.log('Socket Disconnected', socket.id)
         if (socket.ffmpegProcess) {
-            socket.ffmpegProcess.kill('SIGTERM')
+            socket.ffmpegProcess.kill('SIGINT')
         }
     })
 })
