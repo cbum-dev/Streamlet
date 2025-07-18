@@ -53,42 +53,30 @@ function createFFmpegProcess(streamKey, platform = 'youtube', quality = 'medium'
 
     console.log(`Starting FFmpeg with RTMP URL: ${rtmpUrl.replace(streamKey, '[HIDDEN]')}`)
 
-const options = [
-    // Input configuration
-    '-f', 'webm',
-    '-i', 'pipe:0',
-    
-    // Video encoding
-    '-c:v', 'libx264',
-    '-preset', 'faster',
-    '-tune', 'zerolatency',
-    '-r', settings.fps,
-    '-g', settings.fps * 2,
-    '-pix_fmt', 'yuv420p',
-    '-profile:v', 'baseline',
-    '-level', '3.1',
-    
-    // Audio fixes
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    '-ar', '48000',  // Match screen share's 48kHz
-    '-ac', '2',
-    '-async', '1000', // Fix sync issues
-    '-vsync', '1',    // Frame rate synchronization
-    
-    // Buffer control
-    '-max_muxing_queue_size', '1024', // Prevent "too many packets" error
-    '-thread_queue_size', '512',      // Larger queue for screen sharing
-    
-    // Bitrate control
-    '-b:v', settings.bitrate,
-    '-maxrate', settings.bitrate,
-    '-bufsize', `${parseInt(settings.bitrate) * 2}k`,
-    
-    // Output
-    '-f', 'flv',
-    rtmpUrl
-];
+    const options = [
+        '-f', 'webm',
+        '-i', 'pipe:0',
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-tune', 'zerolatency',
+        '-r', settings.fps,
+        '-g', settings.fps * 2,
+        '-keyint_min', settings.fps,
+        '-crf', settings.crf,
+        '-pix_fmt', 'yuv420p',
+        '-sc_threshold', '0',
+        '-profile:v', 'baseline',
+        '-level', '3.0',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-ac', '2',
+        '-b:v', settings.bitrate,
+        '-maxrate', settings.bitrate,
+        '-bufsize', `${parseInt(settings.bitrate) * 2}k`,
+        '-f', 'flv',
+        rtmpUrl
+    ]
 
     const ffmpegProcess = spawn('ffmpeg', options)
 

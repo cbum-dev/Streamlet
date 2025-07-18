@@ -71,7 +71,7 @@ export default function ProfessionalStreamer() {
   const [activeTab, setActiveTab] = useState('stream')
 
   useEffect(() => {
-    socketRef.current = io('https://streamlet-1.onrender.com/', {
+    socketRef.current = io('http://127.0.0.1:3001/', {
       transports: ['websocket', 'polling']
     })
 
@@ -130,7 +130,7 @@ export default function ProfessionalStreamer() {
     }
 
     try {
-      const response = await fetch('https://streamlet-1.onrender.com/api/stream/create', {
+      const response = await fetch('http://127.0.0.1:3001/api/stream/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
