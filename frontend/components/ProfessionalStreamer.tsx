@@ -135,7 +135,7 @@ export default function ProfessionalStreamer() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto p-6 max-w-7xl">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-center mb-2">StreamForge Pro</h1>
+          <h1 className="text-4xl font-bold text-center mb-2">Streamlet Pro</h1>
           <p className="text-center text-gray-600 dark:text-gray-400">
             Professional Live Streaming Platform
           </p>
