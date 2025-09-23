@@ -5,11 +5,19 @@ import { Server as SocketIO } from 'socket.io'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import crypto from 'crypto'
+import { PrismaClient } from './generated/prisma/index.js'
+import { decryptStreamKey } from './utils/encryption.js'
+
+// Import routes
+import authRoutes from './routes/auth.js'
+import streamKeyRoutes from './routes/streamKeys.js'
+import streamRoutes from './routes/streams.js'
 
 dotenv.config()
 
 const app = express()
 const server = http.createServer(app)
+const prisma = new PrismaClient()
 
 const io = new SocketIO(server, {
     cors: {
@@ -25,6 +33,11 @@ app.use(cors({
 }))
 
 app.use(express.json())
+
+// API Routes
+app.use('/api/auth', authRoutes)
+app.use('/api/stream-keys', streamKeyRoutes)
+app.use('/api/streams', streamRoutes)
 
 const activeStreams = new Map()
 
@@ -167,35 +180,117 @@ app.delete('/api/stream/:streamId', (req, res) => {
 io.on('connection', socket => {
     console.log('Socket Connected', socket.id)
     
-    socket.on('startStream', ({ streamId, streamKey, platform, quality, customEndpoint }) => {
-        console.log(`Starting stream ${streamId} on ${platform}`)
-        
-        const effectiveStreamKey = platform === 'custom' ? customEndpoint : streamKey
-        
-        if (!effectiveStreamKey) {
-            socket.emit('streamError', { error: 'Stream key is required' })
-            return
-        }
-        
-        const ffmpegProcess = createFFmpegProcess(effectiveStreamKey, platform, quality)
-        
-        socket.ffmpegProcess = ffmpegProcess
-        socket.streamId = streamId
-        
-        if (activeStreams.has(streamId)) {
-            const stream = activeStreams.get(streamId)
-            stream.status = 'live'
-            stream.startedAt = new Date().toISOString()
-            activeStreams.set(streamId, stream)
-        }
-        
-        ffmpegProcess.on('close', (code) => {
-            if (code !== 0) {
-                socket.emit('streamError', { error: `Stream failed with code ${code}` })
+    socket.on('startStream', async ({ streamId, userId, streamKeyId, quality }) => {
+        try {
+            console.log(`Starting stream ${streamId} for user ${userId}`)
+            
+            // Get the stream and decrypt the stream key
+            const stream = await prisma.stream.findFirst({
+                where: {
+                    id: streamId,
+                    userId
+                },
+                include: {
+                    streamKey: true
+                }
+            })
+            
+            if (!stream) {
+                socket.emit('streamError', { error: 'Stream not found' })
+                return
             }
-        })
-        
-        socket.emit('streamStarted', { streamId, status: 'live' })
+            
+            if (!stream.streamKey.isActive) {
+                socket.emit('streamError', { error: 'Stream key is inactive' })
+                return
+            }
+            
+            // Decrypt the stream key
+            const decryptedKey = decryptStreamKey(stream.streamKey.encryptedKey)
+            const platform = stream.streamKey.platform
+            
+            const ffmpegProcess = createFFmpegProcess(decryptedKey, platform, quality || stream.quality)
+            
+            socket.ffmpegProcess = ffmpegProcess
+            socket.streamId = streamId
+            socket.userId = userId
+            
+            // Update stream status in database
+            await prisma.stream.update({
+                where: { id: streamId },
+                data: {
+                    status: 'live',
+                    startedAt: new Date(),
+                    updatedAt: new Date()
+                }
+            })
+            
+            // Update user live status
+            await prisma.user.update({
+                where: { id: userId },
+                data: { isLive: true }
+            })
+            
+            // Update stream key last used
+            await prisma.streamKey.update({
+                where: { id: stream.streamKeyId },
+                data: { lastUsed: new Date() }
+            })
+            
+            ffmpegProcess.on('close', async (code) => {
+                if (code !== 0) {
+                    socket.emit('streamError', { error: `Stream failed with code ${code}` })
+                    
+                    // Update stream status to error
+                    await prisma.stream.update({
+                        where: { id: streamId },
+                        data: {
+                            status: 'error',
+                            endedAt: new Date(),
+                            updatedAt: new Date()
+                        }
+                    })
+                }
+            })
+            
+            socket.emit('streamStarted', { streamId, status: 'live' })
+            
+            // Start analytics collection
+            socket.analyticsInterval = setInterval(async () => {
+                if (socket.streamId && socket.userId) {
+                    // In a real implementation, you'd get actual metrics from FFmpeg
+                    const mockViewers = Math.floor(Math.random() * 100) + 1
+                    
+                    await prisma.streamAnalytics.create({
+                        data: {
+                            streamId: socket.streamId,
+                            userId: socket.userId,
+                            viewers: mockViewers,
+                            timestamp: new Date()
+                        }
+                    })
+                    
+                    // Update peak viewers if necessary
+                    const currentStream = await prisma.stream.findUnique({
+                        where: { id: socket.streamId },
+                        select: { peakViewers: true }
+                    })
+                    
+                    if (mockViewers > (currentStream?.peakViewers || 0)) {
+                        await prisma.stream.update({
+                            where: { id: socket.streamId },
+                            data: { peakViewers: mockViewers }
+                        })
+                    }
+                    
+                    socket.emit('streamMetrics', { viewers: mockViewers })
+                }
+            }, 30000) // Every 30 seconds
+            
+        } catch (error) {
+            console.error('Error starting stream:', error)
+            socket.emit('streamError', { error: 'Failed to start stream' })
+        }
     })
     
     socket.on('binarystream', stream => {
@@ -209,27 +304,93 @@ io.on('connection', socket => {
         }
     })
     
-    socket.on('stopStream', () => {
-        console.log('Stopping stream')
-        if (socket.ffmpegProcess) {
-            socket.ffmpegProcess.kill('SIGINT')
-            socket.ffmpegProcess = null
+    socket.on('stopStream', async () => {
+        try {
+            console.log('Stopping stream')
+            
+            if (socket.ffmpegProcess) {
+                socket.ffmpegProcess.kill('SIGINT')
+                socket.ffmpegProcess = null
+            }
+            
+            if (socket.analyticsInterval) {
+                clearInterval(socket.analyticsInterval)
+                socket.analyticsInterval = null
+            }
+            
+            if (socket.streamId && socket.userId) {
+                // Get stream start time to calculate duration
+                const stream = await prisma.stream.findUnique({
+                    where: { id: socket.streamId },
+                    select: { startedAt: true }
+                })
+                
+                const duration = stream?.startedAt ? 
+                    Math.floor((new Date() - stream.startedAt) / 1000) : 0
+                
+                // Update stream status
+                await prisma.stream.update({
+                    where: { id: socket.streamId },
+                    data: {
+                        status: 'ended',
+                        endedAt: new Date(),
+                        duration,
+                        updatedAt: new Date()
+                    }
+                })
+                
+                // Update user status and increment total streams
+                await prisma.user.update({
+                    where: { id: socket.userId },
+                    data: {
+                        isLive: false,
+                        totalStreams: { increment: 1 }
+                    }
+                })
+            }
+            
+            socket.emit('streamStopped')
+            
+        } catch (error) {
+            console.error('Error stopping stream:', error)
+            socket.emit('streamError', { error: 'Failed to stop stream properly' })
         }
-        
-        if (socket.streamId && activeStreams.has(socket.streamId)) {
-            const stream = activeStreams.get(socket.streamId)
-            stream.status = 'stopped'
-            stream.endedAt = new Date().toISOString()
-            activeStreams.set(socket.streamId, stream)
-        }
-        
-        socket.emit('streamStopped')
     })
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         console.log('Socket Disconnected', socket.id)
+        
         if (socket.ffmpegProcess) {
             socket.ffmpegProcess.kill('SIGINT')
+        }
+        
+        if (socket.analyticsInterval) {
+            clearInterval(socket.analyticsInterval)
+        }
+        
+        // Clean up any active streams
+        if (socket.streamId && socket.userId) {
+            try {
+                await prisma.stream.updateMany({
+                    where: {
+                        id: socket.streamId,
+                        userId: socket.userId,
+                        status: 'live'
+                    },
+                    data: {
+                        status: 'ended',
+                        endedAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                })
+                
+                await prisma.user.update({
+                    where: { id: socket.userId },
+                    data: { isLive: false }
+                })
+            } catch (error) {
+                console.error('Error cleaning up on disconnect:', error)
+            }
         }
     })
 })
