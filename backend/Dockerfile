@@ -1,16 +1,27 @@
 FROM ubuntu:focal
 
-RUN /usr/bin/apt-get update && \
-    /usr/bin/apt-get install -y curl && \
+# Install Node.js 18, ffmpeg, and dependencies
+RUN apt-get update && \
+    apt-get install -y curl && \
     curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
-    /usr/bin/apt-get update && \
-    /usr/bin/apt-get upgrade -y && \
-    /usr/bin/apt-get install -y nodejs ffmpeg
+    apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y nodejs ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /home/app
+# Set working directory
+WORKDIR /app
 
+# Install nodemon globally
 RUN npm i -g nodemon
 
+# Copy project files
+COPY . .
+
+# Expose app port
 EXPOSE 3001
 
-CMD ["nodemon", "index.js"]
+# Inline entrypoint logic (was in docker-entrypoint.sh)
+CMD npx prisma generate && \
+    node -e "console.log('DATABASE_URL present:', !!process.env.DATABASE_URL)" && \
+    node index.js

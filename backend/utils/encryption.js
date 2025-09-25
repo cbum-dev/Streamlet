@@ -1,7 +1,17 @@
 import crypto from 'crypto'
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex')
+// Ensure we have a proper 32-byte key
+let ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
+if (!ENCRYPTION_KEY) {
+    ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex')
+    console.warn('No ENCRYPTION_KEY found in environment, using temporary key:', ENCRYPTION_KEY)
+} else if (ENCRYPTION_KEY.length !== 64) {
+    // If key is not 64 hex chars (32 bytes), hash it to get proper length
+    ENCRYPTION_KEY = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex')
+}
+
 const ALGORITHM = 'aes-256-gcm'
+const IV_LENGTH = 12 // GCM typically uses 12 bytes
 
 /**
  * Encrypt a stream key
@@ -11,16 +21,25 @@ const ALGORITHM = 'aes-256-gcm'
 export function encryptStreamKey(text) {
     if (!text) throw new Error('Text to encrypt is required')
     
-    const iv = crypto.randomBytes(16)
-    const cipher = crypto.createCipher(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'))
-    
-    let encrypted = cipher.update(text, 'utf8', 'hex')
-    encrypted += cipher.final('hex')
-    
-    const authTag = cipher.getAuthTag()
-    
-    // Combine IV, auth tag, and encrypted data
-    return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted
+    try {
+        const iv = crypto.randomBytes(IV_LENGTH)
+        const key = Buffer.from(ENCRYPTION_KEY, 'hex')
+        
+        const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
+        cipher.setAAD(Buffer.from('streamkey', 'utf8')) // Additional authenticated data
+        
+        let encrypted = cipher.update(text, 'utf8', 'hex')
+        encrypted += cipher.final('hex')
+        
+        const authTag = cipher.getAuthTag()
+        
+        // Combine IV, auth tag, and encrypted data
+        return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted
+    } catch (error) {
+        console.error('Encryption error:', error)
+        console.error('Key length:', ENCRYPTION_KEY.length)
+        throw new Error('Encryption failed: ' + error.message)
+    }
 }
 
 /**
@@ -40,15 +59,18 @@ export function decryptStreamKey(encryptedText) {
         const iv = Buffer.from(parts[0], 'hex')
         const authTag = Buffer.from(parts[1], 'hex')
         const encrypted = parts[2]
+        const key = Buffer.from(ENCRYPTION_KEY, 'hex')
         
-        const decipher = crypto.createDecipher(ALGORITHM, Buffer.from(ENCRYPTION_KEY, 'hex'))
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
         decipher.setAuthTag(authTag)
+        decipher.setAAD(Buffer.from('streamkey', 'utf8'))
         
         let decrypted = decipher.update(encrypted, 'hex', 'utf8')
         decrypted += decipher.final('utf8')
         
         return decrypted
     } catch (error) {
+        console.error('Decryption error:', error)
         throw new Error('Failed to decrypt stream key: ' + error.message)
     }
 }

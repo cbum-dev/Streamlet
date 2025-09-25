@@ -6,22 +6,30 @@ services:
       context: ./backend
       dockerfile: ./Dockerfile
     volumes:
-      - ./backend:/home/app
+      - ./backend:/app
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=development
-    
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
   frontend:
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
     volumes:
       - ./frontend:/home/app:cached
       - /home/app/node_modules
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=development
     depends_on:
       - backend
