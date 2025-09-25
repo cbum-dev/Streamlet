@@ -10,21 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Play, 
   Square, 
-  Settings, 
   Key, 
   BarChart3, 
   Video, 
   Users, 
-  Clock,
-  Plus,
-  Eye,
-  EyeOff,
-  Copy,
-  Trash2,
-  Edit
+  Clock
 } from "lucide-react";
 import StreamKeyManager from "@/components/dashboard/StreamKeyManager";
-import LiveStream from "@/components/dashboard/LiveStream";
 import StreamAnalytics from "@/components/dashboard/StreamAnalytics";
 import StreamManager from "@/components/dashboard/StreamManager";
 interface UserStats {
@@ -88,7 +80,7 @@ export default function DashboardPage() {
             Welcome back, {session.user.name}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {userStats.isLive && (
             <Badge variant="destructive" className="animate-pulse">
               🔴 LIVE
@@ -97,6 +89,11 @@ export default function DashboardPage() {
           <Badge variant="outline">
             {userStats.streamKeys} Stream Keys
           </Badge>
+          <a href="/stream">
+            <Button className="bg-red-600 hover:bg-red-700">
+              Go Live
+            </Button>
+          </a>
         </div>
       </div>
 
@@ -157,22 +154,16 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Main Content Tabs */}
+      {/* Main Content Tabs (removed Go Live and Settings) */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="stream">Go Live</TabsTrigger>
           <TabsTrigger value="keys">Stream Keys</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           <StreamManager userId={session.user.id} onStatsUpdate={fetchUserStats} />
-        </TabsContent>
-
-        <TabsContent value="stream" className="space-y-4">
-          <LiveStream userId={session.user.id} onStatsUpdate={fetchUserStats} />
         </TabsContent>
 
         <TabsContent value="keys" className="space-y-4">
@@ -181,39 +172,6 @@ export default function DashboardPage() {
 
         <TabsContent value="analytics" className="space-y-4">
           <StreamAnalytics userId={session.user.id} />
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Settings</CardTitle>
-              <CardDescription>
-                Manage your streaming profile and preferences
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Display Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full mt-1 p-2 border rounded-md"
-                    defaultValue={session.user.name || ''}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Email</label>
-                  <input 
-                    type="email" 
-                    className="w-full mt-1 p-2 border rounded-md"
-                    defaultValue={session.user.email || ''}
-                    disabled
-                  />
-                </div>
-              </div>
-              <Button>Save Changes</Button>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

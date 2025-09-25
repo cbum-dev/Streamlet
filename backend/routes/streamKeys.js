@@ -1,14 +1,21 @@
 import express from 'express'
 import { PrismaClient } from '../generated/prisma/index.js'
-import { encryptStreamKey, decryptStreamKey, maskStreamKey } from '../utils/encryption.js'
+import { maskStreamKey } from '../utils/encryption.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
+
+// Simple Mongo ObjectId validation (24 hex chars)
+const isValidObjectId = (id) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id)
 
 // Get all stream keys for a user
 router.get('/user/:userId', async (req, res) => {
     try {
         const { userId } = req.params
+        
+        if (!isValidObjectId(userId)) {
+            return res.status(400).json({ error: 'Invalid userId format. Expected 24-hex Mongo ObjectId.' })
+        }
         
         const streamKeys = await prisma.streamKey.findMany({
             where: { userId },
@@ -21,15 +28,15 @@ router.get('/user/:userId', async (req, res) => {
                 createdAt: true,
                 updatedAt: true,
                 lastUsed: true,
-                encryptedKey: true // We'll mask this before sending
+                encryptedKey: true // Stores plaintext in dev mode
             }
         })
         
-        // Mask the stream keys for security
+        // Mask the stream keys for security (mask plaintext)
         const maskedKeys = streamKeys.map(key => ({
             ...key,
-            maskedKey: maskStreamKey(decryptStreamKey(key.encryptedKey)),
-            encryptedKey: undefined // Remove the actual encrypted key
+            maskedKey: maskStreamKey(key.encryptedKey || ''),
+            encryptedKey: undefined
         }))
         
         res.json({
@@ -53,14 +60,11 @@ router.post('/create', async (req, res) => {
             })
         }
         
-        // Encrypt the stream key
-        const encryptedKey = encryptStreamKey(streamKey)
-        
         const newStreamKey = await prisma.streamKey.create({
             data: {
                 name,
                 platform,
-                encryptedKey,
+                encryptedKey: streamKey, // store plaintext (dev mode)
                 userId,
                 createdAt: new Date(),
                 updatedAt: new Date()
@@ -84,7 +88,6 @@ router.post('/create', async (req, res) => {
     }
 })
 
-// Get decrypted stream key (for streaming)
 router.get('/decrypt/:keyId', async (req, res) => {
     try {
         const { keyId } = req.params
@@ -92,6 +95,9 @@ router.get('/decrypt/:keyId', async (req, res) => {
         
         if (!userId) {
             return res.status(400).json({ error: 'User ID is required' })
+        }
+        if (!isValidObjectId(userId) || !isValidObjectId(keyId)) {
+            return res.status(400).json({ error: 'Invalid id format. Expected 24-hex Mongo ObjectId.' })
         }
         
         const streamKey = await prisma.streamKey.findFirst({
@@ -105,22 +111,14 @@ router.get('/decrypt/:keyId', async (req, res) => {
         if (!streamKey) {
             return res.status(404).json({ error: 'Stream key not found or inactive' })
         }
-        
-        // Decrypt the stream key
-        const decryptedKey = decryptStreamKey(streamKey.encryptedKey)
-        
+        // Return plaintext directly in dev mode
         // Update last used timestamp
         await prisma.streamKey.update({
             where: { id: keyId },
             data: { lastUsed: new Date() }
         })
-        
-        res.json({
-            success: true,
-            streamKey: decryptedKey,
-            platform: streamKey.platform,
-            name: streamKey.name
-        })
+
+        res.json({ success: true, streamKey: streamKey.encryptedKey, platform: streamKey.platform, name: streamKey.name })
     } catch (error) {
         console.error('Error decrypting stream key:', error)
         res.status(500).json({ error: 'Internal server error' })
@@ -135,6 +133,9 @@ router.put('/:keyId', async (req, res) => {
         
         if (!userId) {
             return res.status(400).json({ error: 'User ID is required' })
+        }
+        if (!isValidObjectId(userId) || !isValidObjectId(keyId)) {
+            return res.status(400).json({ error: 'Invalid id format. Expected 24-hex Mongo ObjectId.' })
         }
         
         const updateData = {
@@ -175,6 +176,9 @@ router.delete('/:keyId', async (req, res) => {
         
         if (!userId) {
             return res.status(400).json({ error: 'User ID is required' })
+        }
+        if (!isValidObjectId(userId) || !isValidObjectId(keyId)) {
+            return res.status(400).json({ error: 'Invalid id format. Expected 24-hex Mongo ObjectId.' })
         }
         
         const deletedKey = await prisma.streamKey.deleteMany({

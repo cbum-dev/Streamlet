@@ -331,18 +331,6 @@ export default function StreamManager({ userId, onStatsUpdate }: StreamManagerPr
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {stream.status === 'created' && (
-                      <Button size="sm" className="bg-red-600 hover:bg-red-700">
-                        <Play className="h-4 w-4 mr-2" />
-                        Go Live
-                      </Button>
-                    )}
-                    {stream.status === 'live' && (
-                      <Button size="sm" variant="outline">
-                        <Square className="h-4 w-4 mr-2" />
-                        Stop Stream
-                      </Button>
-                    )}
                     <Button
                       variant="outline"
                       size="sm"

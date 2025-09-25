@@ -9,14 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Plus, 
-  Eye, 
-  EyeOff, 
   Copy, 
-  Trash2, 
-  Edit,
   Key,
   Calendar,
-  Activity
+  Activity,
+  Check
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -39,7 +36,7 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
   const [streamKeys, setStreamKeys] = useState<StreamKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   
   // Form state
   const [newKey, setNewKey] = useState({
@@ -110,28 +107,18 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
     }
   };
 
-  const toggleKeyVisibility = async (keyId: string) => {
-    if (visibleKeys.has(keyId)) {
-      setVisibleKeys(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(keyId);
-        return newSet;
-      });
-    } else {
-      try {
-        if (!userId) return;
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/stream-keys/decrypt/${keyId}?userId=${userId}`);
-        if (response.ok) {
-          const data = await response.json();
-          // Store the decrypted key temporarily
-          setStreamKeys(prev => prev.map(key => 
-            key.id === keyId ? { ...key, decryptedKey: data.streamKey } : key
-          ));
-          setVisibleKeys(prev => new Set(prev).add(keyId));
-        }
-      } catch (error) {
-        console.error('Error decrypting stream key:', error);
+  const copyDecryptedKey = async (keyId: string) => {
+    try {
+      if (!userId) return;
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/stream-keys/decrypt/${keyId}?userId=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        await navigator.clipboard.writeText(data.streamKey);
+        setCopiedKeyId(keyId);
+        setTimeout(() => setCopiedKeyId(null), 2000);
       }
+    } catch (error) {
+      console.error('Error copying stream key:', error);
     }
   };
 
@@ -267,32 +254,17 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => toggleKeyVisibility(key.id)}
+                      onClick={() => copyDecryptedKey(key.id)}
                     >
-                      {visibleKeys.has(key.id) ? (
-                        <EyeOff className="h-4 w-4" />
+                      {copiedKeyId === key.id ? (
+                        <>
+                          <Check className="h-4 w-4 mr-1" /> Copied
+                        </>
                       ) : (
-                        <Eye className="h-4 w-4" />
+                        <>
+                          <Copy className="h-4 w-4 mr-1" /> Copy Key
+                        </>
                       )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyToClipboard(
-                        visibleKeys.has(key.id) 
-                          ? (key as any).decryptedKey || key.maskedKey 
-                          : key.maskedKey
-                      )}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deleteStreamKey(key.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -302,10 +274,7 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Stream Key:</span>
                     <code className="bg-muted px-2 py-1 rounded text-sm">
-                      {visibleKeys.has(key.id) 
-                        ? (key as any).decryptedKey || key.maskedKey
-                        : key.maskedKey
-                      }
+                      {key.maskedKey}
                     </code>
                   </div>
                   <div className="flex items-center justify-between text-sm">
