@@ -49,12 +49,14 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
   });
 
   useEffect(() => {
+    if (!userId) return;
     fetchStreamKeys();
   }, [userId]);
 
   const fetchStreamKeys = async () => {
     try {
       setLoading(true);
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/stream-keys/user/${userId}`);
       if (response.ok) {
         const data = await response.json();
@@ -69,6 +71,7 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
 
   const createStreamKey = async () => {
     try {
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/stream-keys/create`, {
         method: 'POST',
         headers: {
@@ -93,6 +96,7 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
 
   const deleteStreamKey = async (keyId: string) => {
     try {
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/stream-keys/${keyId}?userId=${userId}`, {
         method: 'DELETE',
       });
@@ -115,6 +119,7 @@ export default function StreamKeyManager({ userId, onUpdate }: StreamKeyManagerP
       });
     } else {
       try {
+        if (!userId) return;
         const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/stream-keys/decrypt/${keyId}?userId=${userId}`);
         if (response.ok) {
           const data = await response.json();

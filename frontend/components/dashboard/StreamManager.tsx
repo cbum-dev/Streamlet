@@ -73,6 +73,7 @@ export default function StreamManager({ userId, onStatsUpdate }: StreamManagerPr
   });
 
   useEffect(() => {
+    if (!userId) return;
     fetchStreams();
     fetchStreamKeys();
   }, [userId]);
@@ -80,6 +81,7 @@ export default function StreamManager({ userId, onStatsUpdate }: StreamManagerPr
   const fetchStreams = async () => {
     try {
       setLoading(true);
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams/user/${userId}?limit=20`);
       if (response.ok) {
         const data = await response.json();
@@ -94,6 +96,7 @@ export default function StreamManager({ userId, onStatsUpdate }: StreamManagerPr
 
   const fetchStreamKeys = async () => {
     try {
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/stream-keys/user/${userId}`);
       if (response.ok) {
         const data = await response.json();
@@ -106,6 +109,7 @@ export default function StreamManager({ userId, onStatsUpdate }: StreamManagerPr
 
   const createStream = async () => {
     try {
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams/create`, {
         method: 'POST',
         headers: {
@@ -130,6 +134,7 @@ export default function StreamManager({ userId, onStatsUpdate }: StreamManagerPr
 
   const deleteStream = async (streamId: string) => {
     try {
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams/${streamId}?userId=${userId}`, {
         method: 'DELETE',
       });

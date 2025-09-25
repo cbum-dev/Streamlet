@@ -54,18 +54,21 @@ export default function StreamAnalytics({ userId }: StreamAnalyticsProps) {
   const [timeRange, setTimeRange] = useState("7d");
 
   useEffect(() => {
+    if (!userId) return;
     fetchStreams();
   }, [userId]);
 
   useEffect(() => {
+    if (!userId) return;
     if (selectedStream) {
       fetchStreamAnalytics(selectedStream);
     }
-  }, [selectedStream]);
+  }, [selectedStream, userId]);
 
   const fetchStreams = async () => {
     try {
       setLoading(true);
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams/user/${userId}?limit=50`);
       if (response.ok) {
         const data = await response.json();
@@ -84,6 +87,7 @@ export default function StreamAnalytics({ userId }: StreamAnalyticsProps) {
 
   const fetchStreamAnalytics = async (streamId: string) => {
     try {
+      if (!userId || !streamId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams/${streamId}/analytics?userId=${userId}`);
       if (response.ok) {
         const data = await response.json();

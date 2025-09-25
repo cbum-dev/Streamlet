@@ -69,6 +69,7 @@ export default function LiveStream({ userId, onStatsUpdate }: LiveStreamProps) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (!userId) return;
     fetchStreams();
     getMediaDevices();
     initializeSocket();
@@ -135,6 +136,7 @@ export default function LiveStream({ userId, onStatsUpdate }: LiveStreamProps) {
 
   const fetchStreams = async () => {
     try {
+      if (!userId) return;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams/user/${userId}?status=created`);
       if (response.ok) {
         const data = await response.json();
