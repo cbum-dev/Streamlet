@@ -4,7 +4,7 @@ import { PrismaClient } from '../generated/prisma/index.js'
 const router = express.Router()
 const prisma = new PrismaClient()
 
-// Get all streams for a user
+
 router.get('/user/:userId', async (req, res) => {
     try {
         const { userId } = req.params
@@ -65,7 +65,7 @@ router.get('/user/:userId', async (req, res) => {
     }
 })
 
-// Create a new stream
+
 router.post('/create', async (req, res) => {
     try {
         const { userId, streamKeyId, title, description, quality = 'medium' } = req.body
@@ -76,7 +76,7 @@ router.post('/create', async (req, res) => {
             })
         }
         
-        // Verify the stream key belongs to the user
+
         const streamKey = await prisma.streamKey.findFirst({
             where: {
                 id: streamKeyId,
@@ -121,7 +121,7 @@ router.post('/create', async (req, res) => {
     }
 })
 
-// Update stream status
+
 router.put('/:streamId/status', async (req, res) => {
     try {
         const { streamId } = req.params
@@ -139,7 +139,7 @@ router.put('/:streamId/status', async (req, res) => {
         if (status === 'live' && !await prisma.stream.findFirst({ where: { id: streamId, startedAt: { not: null } } })) {
             updateData.startedAt = new Date()
             
-            // Update user's live status
+
             await prisma.user.update({
                 where: { id: userId },
                 data: { isLive: true }
@@ -149,7 +149,7 @@ router.put('/:streamId/status', async (req, res) => {
         if (status === 'ended') {
             updateData.endedAt = new Date()
             
-            // Calculate duration if stream was started
+
             const stream = await prisma.stream.findUnique({
                 where: { id: streamId },
                 select: { startedAt: true }
@@ -159,7 +159,7 @@ router.put('/:streamId/status', async (req, res) => {
                 updateData.duration = Math.floor((new Date() - stream.startedAt) / 1000)
             }
             
-            // Update user's live status and increment total streams
+
             await prisma.user.update({
                 where: { id: userId },
                 data: {
@@ -181,7 +181,7 @@ router.put('/:streamId/status', async (req, res) => {
             return res.status(404).json({ error: 'Stream not found' })
         }
         
-        // Record analytics if provided
+
         if (status === 'live' && (viewers !== undefined || bitrate || fps || resolution)) {
             await prisma.streamAnalytics.create({
                 data: {
@@ -195,7 +195,7 @@ router.put('/:streamId/status', async (req, res) => {
                 }
             })
             
-            // Update peak viewers if necessary
+
             if (viewers !== undefined) {
                 const currentStream = await prisma.stream.findUnique({
                     where: { id: streamId },
@@ -221,7 +221,7 @@ router.put('/:streamId/status', async (req, res) => {
     }
 })
 
-// Get stream analytics
+
 router.get('/:streamId/analytics', async (req, res) => {
     try {
         const { streamId } = req.params
@@ -231,7 +231,7 @@ router.get('/:streamId/analytics', async (req, res) => {
             return res.status(400).json({ error: 'User ID is required' })
         }
         
-        // Verify stream belongs to user
+
         const stream = await prisma.stream.findFirst({
             where: {
                 id: streamId,
@@ -248,7 +248,7 @@ router.get('/:streamId/analytics', async (req, res) => {
             orderBy: { timestamp: 'asc' }
         })
         
-        // Calculate summary statistics
+
         const summary = {
             totalDataPoints: analytics.length,
             averageViewers: analytics.length > 0 ? 
@@ -279,7 +279,7 @@ router.get('/:streamId/analytics', async (req, res) => {
     }
 })
 
-// Delete stream
+
 router.delete('/:streamId', async (req, res) => {
     try {
         const { streamId } = req.params

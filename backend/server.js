@@ -26,11 +26,11 @@ function decrypt(text) {
   return decrypted.toString();
 }
 
-// Save a stream key
+
 app.post('/api/keys', async (req, res) => {
   const { email, platform, key } = req.body;
 
-  // Get or create user
+
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     user = await prisma.user.create({ data: { email } });
@@ -49,7 +49,7 @@ app.post('/api/keys', async (req, res) => {
   res.json({ success: true, id: saved.id });
 });
 
-// Get all keys for a user
+
 app.get('/api/keys', async (req, res) => {
   const { email } = req.query;
   const user = await prisma.user.findUnique({

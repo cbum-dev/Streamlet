@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
   provider = "prisma-client-js"
@@ -131,8 +126,8 @@ model StreamAnalytics {
 model Recording {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   filename      String
-  fileSize      Int      // in bytes
-  duration      Int      // in seconds
+  fileSize      Int      
+  duration      Int      
   quality       String
   format        String   @default("mp4")
   thumbnailUrl  String?

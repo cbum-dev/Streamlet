@@ -20,7 +20,7 @@ const handler = NextAuth({
         }
         
 
-        // Use Prisma directly to create/update user
+
         const dbUser = await prisma.user.upsert({
           where: { email: user.email },
           update: {
@@ -45,7 +45,7 @@ const handler = NextAuth({
       }
     },
     async session({ session, token }) {
-      // Add user ID to session if needed
+
       if (session.user?.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: session.user.email }

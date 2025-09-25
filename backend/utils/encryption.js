@@ -1,15 +1,14 @@
-// Encryption disabled: using pass-through functions for development
-// Keep exports to avoid changing import sites
+
 import crypto from 'crypto'
 
 /**
  * Encrypt a stream key
- * @param {string} text - The stream key to encrypt
- * @returns {string} - Encrypted string with IV and auth tag
+ * @param {string} text 
+ * @returns {string}
  */
 export function encryptStreamKey(text) {
     if (!text) throw new Error('Text to encrypt is required')
-    // Pass-through: store plaintext
+
     return text
 }
 
@@ -20,7 +19,7 @@ export function encryptStreamKey(text) {
  */
 export function decryptStreamKey(encryptedText) {
     if (!encryptedText) throw new Error('Encrypted text is required')
-    // Pass-through: return plaintext
+
     return encryptedText
 }
 
@@ -49,10 +48,7 @@ export function maskStreamKey(streamKey) {
     return `${start}${middle}${end}`
 }
 
-/**
- * Test function to verify encryption/decryption works
- */
 export function testEncryption() {
-    // Always true in pass-through mode
+
     return true
 }

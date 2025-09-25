@@ -4,7 +4,6 @@ import { PrismaClient } from '../generated/prisma/index.js'
 const router = express.Router()
 const prisma = new PrismaClient()
 
-// Get user profile
 router.get('/profile/:userId', async (req, res) => {
     try {
         const { userId } = req.params
@@ -20,7 +19,6 @@ router.get('/profile/:userId', async (req, res) => {
                         isActive: true,
                         createdAt: true,
                         lastUsed: true,
-                        // Don't include encryptedKey for security
                     }
                 },
                 streams: {
@@ -64,7 +62,6 @@ router.get('/profile/:userId', async (req, res) => {
     }
 })
 
-// Update user profile
 router.put('/profile/:userId', async (req, res) => {
     try {
         const { userId } = req.params
@@ -96,7 +93,6 @@ router.put('/profile/:userId', async (req, res) => {
     }
 })
 
-// Create or update user (for NextAuth integration)
 router.post('/user', async (req, res) => {
     try {
         const { email, name, image } = req.body
